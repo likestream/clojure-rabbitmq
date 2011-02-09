@@ -1,7 +1,3 @@
-#^:shebang '[
-exec java -cp "lib/*:$PWD/*" clojure.main "$0" -- "$@"
-]
-
 (ns rabbitmq-publisher
   (:require [org.clojars.rabbitmq :as rabbitmq]))
 
@@ -32,6 +28,7 @@ exec java -cp "lib/*:$PWD/*" clojure.main "$0" -- "$@"
   ;; publish
   (let [[conn channel] connection]
     (do
+      (swank.core/break)
       (rabbitmq/bind-channel conn-map channel)
       (println "rabbitmq publishing:" (format "message%d" @c))
       (rabbitmq/publish conn-map channel (format "message%d" @c))))

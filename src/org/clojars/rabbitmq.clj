@@ -3,7 +3,7 @@
 (ns org.clojars.rabbitmq
   (:gen-class)
   (:import (com.rabbitmq.client
-             ConnectionParameters
+;             ConnectionParameters
              Connection
              Channel
              AMQP
@@ -25,25 +25,32 @@
 
 (defn connect [{:keys [username password virtual-host port
                        #^String host]}]
-  (let [#^ConnectionParameters params
-        (doto (new ConnectionParameters)
+  (let [#^ConnectionFactory cf
+        (doto (new ConnectionFactory)
           (.setUsername username)
           (.setPassword password)
           (.setVirtualHost virtual-host)
+	  (.setHost host)
+	  (.setPort (int port))
           (.setRequestedHeartbeat 0))
         
-        #^Connection conn
-        (let [#^ConnectionFactory f
-              (new ConnectionFactory params)]
-          (.newConnection f host (int port)))]
-    
+        #^Connection conn (.newConnection cf)]
+
     [conn (.createChannel conn)]))
 
-(defn bind-channel [{:keys [exchange type queue routing-key durable]}
-                    #^Channel ch]
-  (.exchangeDeclare ch exchange type durable)
-  (.queueDeclare ch queue durable)
-  (.queueBind ch queue exchange routing-key))
+;; (defn bind-channel [{:keys [exchange type queue routing-key durable]}
+;;                     #^Channel ch]
+;;   (.exchangeDeclare ch exchange type durable)
+;;   (.queueDeclare ch queue durable)
+;;   (.queueBind ch queue exchange routing-key))
+
+(defn bind-channel [{:keys [exchange type queue routing-key durable exclusive auto-delete]}
+                   #^Channel ch]
+ (.exchangeDeclare ch exchange type durable)
+ (.queueDeclare ch queue durable exclusive auto-delete nil)
+ (.queueBind ch queue exchange routing-key))
+
+
 
 (defn publish [{:keys [exchange routing-key]}
                #^Channel ch
@@ -94,7 +101,7 @@
   declare-queue-and-consumer
   "Return a QueueingConsumer with the appropriate settings."
   [#^Channel ch queue prefetch]
-  (.queueDeclare ch queue)
+  (.queueDeclare ch queue nil nil nil nil)
   (when prefetch
     (.basicQos ch prefetch))
   (QueueingConsumer. ch))
