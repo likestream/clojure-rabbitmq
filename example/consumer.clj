@@ -10,6 +10,7 @@
                    :exchange "sorting-room"
                    :queue "po-box"
                    :durable true
+                   :exclusive false :auto-delete false
                    :routing-key "tata"})
 
 (defonce connection (rabbitmq/connect conn-map))
@@ -20,7 +21,7 @@
   (dosync (alter c inc))
   (println "cycle: " @c)
 
-  ;; publish
+  ;; Consume.
   (let [[_ channel] connection
         message     (rabbitmq/consume-poll conn-map channel)]
     (println "rabbitmq consumer : got message" message))
