@@ -10,11 +10,15 @@
                    :exchange "sorting-room"
                    :queue "po-box"
                    :durable true
+                   :exclusive false :auto-delete false
+                   :args nil
                    :routing-key "tata"})
 
 (println conn-map)
 
-(defonce connection (rabbitmq/connect conn-map))
+(let [[conn chan] (rabbitmq/connect conn-map)]
+  (defonce connection conn)
+  (defonce channel chan))
 
 (println connection)
 
@@ -26,11 +30,10 @@
   (println "cycle: " @c)
 
   ;; publish
-  (let [[conn channel] connection]
-    (do
-      (swank.core/break)
-      (rabbitmq/bind-channel conn-map channel)
-      (println "rabbitmq publishing:" (format "message%d" @c))
-      (rabbitmq/publish conn-map channel (format "message%d" @c))))
+  (do
+    ;;(swank.core/break)
+    (rabbitmq/bind-channel conn-map channel)
+    (println "rabbitmq publishing:" (format "message%d" @c))
+    (rabbitmq/publish conn-map channel (format "message%d" @c))))
   
   (Thread/sleep 1000))

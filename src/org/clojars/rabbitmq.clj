@@ -38,19 +38,18 @@
 
     [conn (.createChannel conn)]))
 
-;; (defn bind-channel [{:keys [exchange type queue routing-key durable]}
-;;                     #^Channel ch]
-;;   (.exchangeDeclare ch exchange type durable)
-;;   (.queueDeclare ch queue durable)
-;;   (.queueBind ch queue exchange routing-key))
-
-(defn bind-channel [{:keys [exchange type queue routing-key durable exclusive auto-delete]}
+(defn bind-channel [{:keys [exchange type queue routing-key durable exclusive auto-delete args]}
                    #^Channel ch]
- (.exchangeDeclare ch exchange type durable)
- (.queueDeclare ch queue durable exclusive auto-delete nil)
- (.queueBind ch queue exchange routing-key))
-
-
+ (try
+   (.exchangeDeclare ch exchange type
+                     (boolean durable) (boolean auto-delete) 
+                     args)
+   (.queueDeclare ch queue
+                  (boolean durable) (boolean exclusive) (boolean auto-delete)
+                  args)
+   (.queueBind ch queue exchange routing-key)
+   (catch Exception ex
+     (.printStackTrace ex))))
 
 (defn publish [{:keys [exchange routing-key]}
                #^Channel ch
