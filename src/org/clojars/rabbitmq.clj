@@ -3,7 +3,7 @@
 (ns org.clojars.rabbitmq
   (:gen-class)
   (:import (com.rabbitmq.client
-             ConnectionParameters
+;             ConnectionParameters
              Connection
              Channel
              AMQP
@@ -25,25 +25,39 @@
 
 (defn connect [{:keys [username password virtual-host port
                        #^String host]}]
-  (let [#^ConnectionParameters params
-        (doto (new ConnectionParameters)
+  (let [#^ConnectionFactory cf
+        (doto (new ConnectionFactory)
           (.setUsername username)
           (.setPassword password)
           (.setVirtualHost virtual-host)
+	  (.setHost host)
+	  (.setPort (int port))
           (.setRequestedHeartbeat 0))
         
-        #^Connection conn
-        (let [#^ConnectionFactory f
-              (new ConnectionFactory params)]
-          (.newConnection f host (int port)))]
-    
+        #^Connection conn (.newConnection cf)]
+
     [conn (.createChannel conn)]))
 
-(defn bind-channel [{:keys [exchange type queue routing-key durable]}
-                    #^Channel ch]
-  (.exchangeDeclare ch exchange type durable)
-  (.queueDeclare ch queue durable)
-  (.queueBind ch queue exchange routing-key))
+(defn declare-queue
+  ([#^Channel ch #^String queue
+    durable exclusive auto-delete]
+   (declare-queue ch queue durable exclusive auto-delete nil))
+  ([#^Channel ch #^String queue
+    durable exclusive auto-delete args]
+   (.queueDeclare ch queue
+                   (boolean durable) (boolean exclusive) (boolean auto-delete)
+                   args)))
+
+(defn bind-channel [{:keys [exchange type queue routing-key durable exclusive auto-delete args]}
+                   #^Channel ch]
+ (try
+   (.exchangeDeclare ch exchange type
+                     (boolean durable) (boolean auto-delete) 
+                     args)
+   (declare-queue ch queue durable exclusive auto-delete)
+   (.queueBind ch queue exchange routing-key)
+   (catch Exception ex
+     (.printStackTrace ex))))
 
 (defn publish [{:keys [exchange routing-key]}
                #^Channel ch
@@ -93,8 +107,9 @@
 (defn #^QueueingConsumer
   declare-queue-and-consumer
   "Return a QueueingConsumer with the appropriate settings."
-  [#^Channel ch queue prefetch]
-  (.queueDeclare ch queue)
+  ;; TODO: tidy up this signature.
+  [#^Channel ch queue prefetch durable exclusive auto-delete]
+  (declare-queue ch queue durable exclusive auto-delete)
   (when prefetch
     (.basicQos ch prefetch))
   (QueueingConsumer. ch))
@@ -107,8 +122,13 @@
   `(let [opts#     ~options
          queue#    (:queue opts#)
          prefetch# (:prefetch opts#)
+         durable#     (:durable opts#)
+         exclusive#   (:exclusive opts#)
+         auto-delete# (:auto-delete opts#)
          cch#      ~ch]
-     (let [~consumer (declare-queue-and-consumer cch# queue# prefetch#)]
+     (let [~consumer
+           (declare-queue-and-consumer cch# queue# prefetch#
+                                       durable# exclusive# auto-delete#)]
        (.basicConsume cch# queue# ~consumer)
        ~@body)))
 
@@ -136,10 +156,10 @@
 
 ;;; consumer routines
 (defn consume-wait
-  ([c #^Channel ch {:keys [prefetch]}]
+  ([c #^Channel ch {:keys [prefetch durable exclusive auto-delete]}]
      (let [consumer (declare-queue-and-consumer
                      ch (:queue c)
-                     prefetch)]
+                     prefetch durable exclusive auto-delete)]
        (.basicConsume ch (:queue c) false consumer)
        (while true
               (let [d (.nextDelivery consumer)
@@ -150,10 +170,10 @@
      (consume-wait c ch {})))
 
 (defn consume-poll
-  ([c #^Channel ch {:keys [prefetch]}]
+  ([c #^Channel ch {:keys [prefetch durable exclusive auto-delete]}]
      (let [consumer (declare-queue-and-consumer
                      ch (:queue c)
-                     prefetch)]
+                     prefetch durable exclusive auto-delete)]
         (.basicConsume ch (:queue c) false consumer)
         (let [d (.nextDelivery consumer)
               m (String. (.getBody d))]

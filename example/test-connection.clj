@@ -1,9 +1,4 @@
-#^:shebang '[
-exec java -cp "lib/*:$PWD/*" clojure.main "$0" -- "$@"
-]
-
-
- (use 'org.clojars.rabbitmq)
+(use 'org.clojars.rabbitmq)
 
 ;; example(1)
 (defonce conn-map {:username "guest"
